@@ -94,14 +94,8 @@ public class ThemeManager {
     private final static ResourceFinder mResourceFinder = new ResourceFinder() {
         @Override
         public InputStream findResource(String name) {
-            if (TextUtils.isEmpty(name)) {
-                try {
-                    return LuaApplication.getInstance().getAssets().open("themes/default/main.lua");
-                } catch (Exception ioe) {
-                    ioe.printStackTrace();
-                }
-                return null;
-            }
+            if (TextUtils.isEmpty(name))
+                name = "main.lua";
             try {
                 if (name.startsWith("themes/default/"))
                     return LuaApplication.getInstance().getAssets().open(name);
@@ -121,14 +115,13 @@ public class ThemeManager {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-            if (!name.endsWith(".lua"))
+            if (name.startsWith("/"))
                 return null;
-            /*try {
-                return LuaApplication.getInstance().getAssets().open("themes/default/"+name);
-            } catch (Exception ioe) {
-                ioe.printStackTrace();
-            }*/
-            return null;
+            try {
+                return LuaApplication.getInstance().getAssets().open("themes/default/" + name);
+            } catch (Exception ignored) {
+                return null;
+            }
         }
 
         @Override
@@ -147,18 +140,11 @@ public class ThemeManager {
         Config.setTheme(name);
         mGlobals = JsePlatform.standardGlobals();
         mGlobals.finder = mResourceFinder;
-        try {
-            LuaValue func = mGlobals.loadfilex("main.lua");
-            if (func.isfunction()) {
-                func.call();
-            } else {
-                sendMsg("setTheme " + func.tojstring());
-                func = mGlobals.loadfilex("themes/default/main.lua");
-                if (func.isfunction())
-                    func.call();
-            }
-        } catch (Exception e) {
-            sendMsg("setTheme " + e.toString());
+        String error = loadThemeFile("main.lua");
+        if (error != null) {
+            String fallbackError = loadThemeFile("themes/default/main.lua");
+            if (fallbackError != null)
+                sendMsg("setTheme " + error + "; fallback: " + fallbackError);
         }
         String styleName = Function.loadString(LuaApplication.getInstance(), Config.getStyleKey(name), mGlobals.get("style").optjstring("light"));
         setStyle(styleName);
@@ -168,6 +154,30 @@ public class ThemeManager {
         //Style comment = getStyle().getStyle("candidate").getStyle("comment");
         //Rime.setRimeOption("_hide_comment",!comment.get("show").optboolean(true));
 
+    }
+
+    private static String loadThemeFile(String path) {
+        try {
+            LuaValue func = mGlobals.loadfilex(path);
+            if (!func.isfunction())
+                return func.tojstring();
+            func.call();
+            return null;
+        } catch (Exception e) {
+            return e.toString();
+        }
+    }
+
+    private static String loadStyleFile(String path) {
+        try {
+            LuaValue func = mGlobals.loadfilex(path, mColor);
+            if (!func.isfunction())
+                return func.tojstring();
+            func.call();
+            return null;
+        } catch (Exception e) {
+            return e.toString();
+        }
     }
 
     public static void sendMsg(String s) {
@@ -186,24 +196,16 @@ public class ThemeManager {
         mt.set("__index", mGlobals);
         mColor.setmetatable(mt);
         String path = "styles/" + name + "/main.lua";
-        try {
-            LuaValue func = mGlobals.loadfilex(path, mColor);
-            if (func.isfunction()) {
-                func.call();
-                return;
-            } else {
-                sendMsg("setStyle " + func.tojstring());
-            }
-        } catch (Exception e) {
-            sendMsg("setStyle " + e);
-        }
-        try {
-            LuaValue func = mGlobals.loadfilex("themes/default/styles/light/main.lua", mColor);
-            if (func.isfunction()) {
-                func.call();
-            }
-        } catch (Exception e) {
-            Log.e("theme", "setStyle: " + e);
+        String error = loadStyleFile(path);
+        if (error == null)
+            return;
+        Log.w("ThemeManager", "Custom style not found or error: " + path + ", reason: " + error);
+        String fallbackError = loadStyleFile("themes/default/styles/light/main.lua");
+        if (fallbackError != null) {
+            sendMsg("setStyle " + error + "; fallback: " + fallbackError);
+        } else {
+            // 外部自定义样式不存在但内置成功兜底时，明确提示用户和主题作者，不再静默吞错
+            sendMsg("setStyle: 样式[" + name + "]不存在或加载失败，已回退到默认样式");
         }
     }
 

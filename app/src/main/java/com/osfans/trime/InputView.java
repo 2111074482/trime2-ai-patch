@@ -51,9 +51,7 @@ public class InputView extends FrameLayout implements ResourceFinder {
         setClipChildren(false);
         setClipToPadding(false);
         String id = Rime.getRimeStatus().getSchemaId();
-        if(TextUtils.isEmpty(id))
-            id = Function.getPref(context).getString("select_schema_id","");
-        setKeyboard(id);
+        setKeyboard(resolveSchemaId(context, id));
     }
 
     @Override
@@ -74,7 +72,10 @@ public class InputView extends FrameLayout implements ResourceFinder {
         if (parent != null && parent instanceof ViewGroup) {
             ((ViewGroup) parent).removeView(keyboardView);
         }
-        Rime.setRimeOption("ascii_mode", keyboardView.isAsciiMode());
+        // A keyboard view must reflect the engine state, not overwrite it.  In particular,
+        // merely opening an ASCII-oriented layout must not permanently force the schema
+        // into ascii_mode; option messages remain the single source of truth.
+        keyboardView.setAsciiMode(Rime.isAsciiMode());
         setShifted(false);
         ModifierState.setShifted(false);
         ModifierState.setShiftLock(false);
@@ -117,6 +118,16 @@ public class InputView extends FrameLayout implements ResourceFinder {
 
     private String mCurrentSchemaId;
 
+    private static boolean isUsableSchemaId(String id) {
+        return !TextUtils.isEmpty(id) && !".default".equals(id);
+    }
+
+    private static String resolveSchemaId(Context context, String id) {
+        if (isUsableSchemaId(id)) return id;
+        String saved = Function.getPref(context).getString("select_schema_id", "");
+        return isUsableSchemaId(saved) ? saved : "luna_pinyin";
+    }
+
     // 2. 视图缓存：SchemaId -> KeyboardView 实例
     private final Map<String, KeyboardView> mViewCache = new HashMap<>();
     private final Map<String, SymbolsKeyboardView> mSymbolsViewCache = new HashMap<>();
@@ -128,7 +139,8 @@ public class InputView extends FrameLayout implements ResourceFinder {
                 setKeyboardView(oldView);
             return;
         }
-        if (id == null || id.equals(mCurrentSchemaId)) return;
+        id = resolveSchemaId(getContext(), id);
+        if (id.equals(mCurrentSchemaId)) return;
         mCurrentSchemaId = id;
         id=getKeyboardId(id);
         Log.w("TAG", "setKeyboard:e " + id);

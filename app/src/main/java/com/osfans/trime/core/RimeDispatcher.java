@@ -39,6 +39,10 @@ public final class RimeDispatcher {
         }
     }
 
+    public void submitAsync(Runnable task) {
+        executor.execute(task);
+    }
+
     // --- Interfaces ---
 
     public interface RimeController {

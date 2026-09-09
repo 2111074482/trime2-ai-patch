@@ -81,24 +81,17 @@ public class CrashHandler implements UncaughtExceptionHandler
 	@Override
 	public void uncaughtException(Thread thread, Throwable ex)
 	{
-		if (!handleException(ex) && mDefaultHandler != null)
-		{
-			//如果用户没有处理则让系统默认的异常处理器来处理
-			mDefaultHandler.uncaughtException(thread, ex);
-		}
-		else
-		{
-			/*try
-			{
-				Thread.sleep(3000);
+		try {
+			handleException(ex);
+		} catch (Throwable handlerError) {
+			Log.e(TAG, "Failed to persist crash information", handlerError);
+		} finally {
+			if (mDefaultHandler != null && mDefaultHandler != this) {
+				mDefaultHandler.uncaughtException(thread, ex);
+			} else {
+				android.os.Process.killProcess(android.os.Process.myPid());
+				System.exit(1);
 			}
-			catch (InterruptedException e)
-			{
-				Log.e(TAG, "error : ", e);
-			}
-			//退出程序
-			android.os.Process.killProcess(android.os.Process.myPid());
-			System.exit(0);*/
 		}
 	}
 

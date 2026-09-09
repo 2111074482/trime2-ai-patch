@@ -66,6 +66,18 @@ public class RootInputView extends FrameLayout {
     private View mCustomView;
     private boolean mShowExtractedCandidatesView;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
+    private final Runnable mSetSchemaRunnable = new Runnable() {
+        @Override public void run() {
+            if (mReleased || mPendingSchema == null) return;
+            String id = mPendingSchema;
+            mPendingSchema = null;
+            Function.saveString(getContext(), "select_schema_id", id);
+            Rime.setRimeOption("soft_cursor", true);
+            if (!mReleased) setTheme(Config.getTheme());
+        }
+    };
+    private String mPendingSchema;
+    private boolean mReleased;
     private ClipboardKeyboardView mClipboardKeyboardView;
     private int mStartIdx = 0;
     private int mCompositionMinLength;
@@ -93,7 +105,11 @@ public class RootInputView extends FrameLayout {
 
     @SuppressLint({"ClickableViewAccessibility", "AppCompatCustomView"})
     private void initView(@NonNull Context context) {
-        mMaxWidth = TrimeService.getInstance().getMaxWidth();
+        TrimeService service = TrimeService.getInstance();
+        if (mReleased || service == null || service.isDestroyedService()) {
+            return;
+        }
+        mMaxWidth = service.getMaxWidth();
         boolean floatMode = Config.isFloatMode();
         setClipChildren(false);
         setClipToPadding(false);
@@ -232,7 +248,8 @@ public class RootInputView extends FrameLayout {
         mCenterLayout.setClipToPadding(false);
         if (Config.isSmallMode())
             mRoot.addView(mLeftLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeManager.getContentHeight(), 1));
-        mRoot.addView(mCenterLayout, new LinearLayout.LayoutParams(trime.getWidth(), ThemeManager.getContentHeight()));
+        int serviceWidth = trime != null ? trime.getWidth() : getResources().getDisplayMetrics().widthPixels;
+        mRoot.addView(mCenterLayout, new LinearLayout.LayoutParams(serviceWidth, ThemeManager.getContentHeight()));
         if (Config.isSmallMode())
             mRoot.addView(mRightLayout, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeManager.getContentHeight(), 1));
 
@@ -371,7 +388,7 @@ public class RootInputView extends FrameLayout {
                     mRoot.setLayoutParams(lp);
                 }
                 if (insets.getSystemWindowInsetBottom() > 1) {
-                    Window win = trime.getWindow().getWindow();
+                    Window win = (trime != null && trime.getWindow() != null) ? trime.getWindow().getWindow() : null;
                     if (win != null) {
                         //win.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                         //win.setDecorFitsSystemWindows(false);
@@ -379,7 +396,7 @@ public class RootInputView extends FrameLayout {
                         win.setNavigationBarColor(ThemeManager.getStyle().getBackgroundColor(0));
                     }
                 } else {
-                    Window win = trime.getWindow().getWindow();
+                    Window win = (trime != null && trime.getWindow() != null) ? trime.getWindow().getWindow() : null;
                     if (win != null) {
                         //win.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
                         //win.setDecorFitsSystemWindows(false);
@@ -390,7 +407,7 @@ public class RootInputView extends FrameLayout {
             }
         });
         mRoot.requestApplyInsets();
-        Window win = trime.getWindow().getWindow();
+        Window win = (trime != null && trime.getWindow() != null) ? trime.getWindow().getWindow() : null;
         if (win != null) {
             //win.addFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION);
             //win.setDecorFitsSystemWindows(false);
@@ -485,13 +502,16 @@ public class RootInputView extends FrameLayout {
             if (mRoot.getX() < 0) {
                 mRoot.setX(0);
             }
-            if (mRoot.getX() + trime.getWidth() > trime.getMaxWidth()) {
-                mRoot.setX(trime.getMaxWidth() - trime.getWidth());
+            int trimeWidth = trime != null ? trime.getWidth() : getResources().getDisplayMetrics().widthPixels;
+            int trimeMaxWidth = trime != null ? trime.getMaxWidth() : getResources().getDisplayMetrics().widthPixels;
+            int trimeHeight = trime != null ? trime.getHeight() : getResources().getDisplayMetrics().heightPixels;
+            if (mRoot.getX() + trimeWidth > trimeMaxWidth) {
+                mRoot.setX(trimeMaxWidth - trimeWidth);
             }
 
             mRoot.setY(Config.getFloatModeY());
-            if (mRoot.getY() < ThemeManager.getHeight() - trime.getHeight() + ThemeManager.getCandidateHeight()) {
-                mRoot.setY(ThemeManager.getHeight() - trime.getHeight() + ThemeManager.getCandidateHeight());
+            if (mRoot.getY() < ThemeManager.getHeight() - trimeHeight + ThemeManager.getCandidateHeight()) {
+                mRoot.setY(ThemeManager.getHeight() - trimeHeight + ThemeManager.getCandidateHeight());
             }
             if (mRoot.getY() > 0) {
                 mRoot.setY(0);
@@ -587,11 +607,19 @@ public class RootInputView extends FrameLayout {
     }
 
     public void setTheme(String theme) {
+        TrimeService trime = TrimeService.getInstance();
+        if (mReleased || trime == null || trime.isDestroyedService()) {
+            return;
+        }
         removeAllViews();
         initView(getContext());
     }
 
     public void setStyle(String theme) {
+        TrimeService trime = TrimeService.getInstance();
+        if (mReleased || trime == null || trime.isDestroyedService()) {
+            return;
+        }
         removeAllViews();
         initView(getContext());
     }
@@ -720,6 +748,9 @@ public class RootInputView extends FrameLayout {
     private final Runnable mCloudRunnable = new Runnable() {
         @Override
         public void run() {
+            TrimeService trime = TrimeService.getInstance();
+            if (mReleased || trime == null || trime.isDestroyedService()) return;
+
             // 这里的 s 直接取最新的 mLastCloudText
             String s = mLastCloudText;
             mCloud.setText(s);
@@ -731,14 +762,15 @@ public class RootInputView extends FrameLayout {
 
                 // 2. 性能核心：使用 TranslationY 避开 RequestLayout
                 // 这样只会触发重绘（Invalidate），不会导致主线程计算整棵布局树
+                int maxWidth = trime.getMaxWidth();
                 if (Config.isFloatMode()) {
                     float targetY = mRoot.getTop() - mRoot.getY() - mCloud.getHeight();
                     mCloud.setTranslationY(targetY);
-                    mCloud.setTranslationX(-(TrimeService.getInstance().getMaxWidth() - mRoot.getX() - mRoot.getWidth()));
+                    mCloud.setTranslationX(-(maxWidth - mRoot.getX() - mRoot.getWidth()));
                 } else {
                     float targetY = mRoot.getTop() - mCloud.getHeight();
                     mCloud.setTranslationY(targetY);
-                    mCloud.setTranslationX(-(TrimeService.getInstance().getMaxWidth() - mCenterLayout.getX() - mCenterLayout.getWidth()));
+                    mCloud.setTranslationX(-(maxWidth - mCenterLayout.getX() - mCenterLayout.getWidth()));
                 }
             }
         }
@@ -850,17 +882,36 @@ public class RootInputView extends FrameLayout {
     }
 
     public void setSchema(String id) {
-        mHandler.post(new Runnable() {
-            @Override
-            public void run() {
-                Function.saveString(getContext(), "select_schema_id", id);
-                String soft_cursor_key = "soft_cursor";
-                Rime.setRimeOption(soft_cursor_key, true); //軟光標
-                setTheme(Config.getTheme());
-                //mInputView.setKeyboard(id);
-                //mCandidateView.setSchema(id);
-            }
-        });
+        if (mReleased) return;
+        if (TextUtils.isEmpty(id) || ".default".equals(id)) {
+            TrimeService service = TrimeService.getInstance();
+            id = service != null ? service.ensureUsableSchema() : "luna_pinyin";
+        }
+        mPendingSchema = id;
+        mHandler.removeCallbacks(mSetSchemaRunnable);
+        mHandler.postDelayed(mSetSchemaRunnable, 10);
+    }
+
+    public void release() {
+        if (mReleased) return;
+        mReleased = true;
+        mPendingSchema = null;
+        mHandler.removeCallbacksAndMessages(null);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (!mReleased && mPendingSchema != null) {
+            mHandler.removeCallbacks(mSetSchemaRunnable);
+            mHandler.postDelayed(mSetSchemaRunnable, 10);
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        mHandler.removeCallbacks(mSetSchemaRunnable);
+        super.onDetachedFromWindow();
     }
 
     public boolean prevCandidate() {

@@ -624,7 +624,8 @@ public class Key {
     }
 
     public int getCode() {
-        return getClick().getCode();
+        // Keep the emitted code consistent with the event/label selected for ascii_mode.
+        return getEvent().getCode();
     }
 
     public int getCode(int type) {

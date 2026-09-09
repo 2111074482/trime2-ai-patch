@@ -28,11 +28,14 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
 
@@ -166,6 +169,16 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private AtomicReference<ScheduledFuture<?>> asciiSwitchTipsJob = new AtomicReference<>(null);
 
+    // Deployment messages can arrive on the native maintenance thread. Keep
+    // conversion work off that callback thread and coalesce duplicate starts.
+    private static final ExecutorService OPENCC_EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "opencc-dict-build");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private final AtomicBoolean openCCBuildScheduled = new AtomicBoolean(false);
+    private volatile long deployStartTime;
+
     // Executor for Rime context operations (simulating CoroutineDispatcher)
     private final RimeDispatcher dispatcher;
 
@@ -218,10 +231,14 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
 
     @Override
     public void deploy() {
-        withRimeContext((Callable<String>) () -> {
-            Rime.exitRime();
-            Rime.startRime(true);
-            return null;
+        dispatcher.submitAsync(() -> {
+            try {
+                Rime.exitRime();
+                Rime.startRime(true);
+            } catch (Throwable t) {
+                Log.e("rime", "Asynchronous deployment execution failed", t);
+                handleRimeMessage(3, new Object[]{"failure"});
+            }
         });
     }
     public void restart() {
@@ -515,7 +532,11 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
         // 假设 rimeMessageHandlers 是一个 List<Consumer<RimeMessage<?>>>
         // 或者类似的函数式接口集合
         for (Consumer<RimeMessage<?>> handler : rimeMessageHandlers) {
-            handler.accept(message);
+            try {
+                handler.accept(message);
+            } catch (Throwable e) {
+                Log.e("Rime", "Rime message handler failed", e);
+            }
         }
 
         // 4. 发送到 Flow (MutableSharedFlow 的 tryEmit 在 Java 中可以直接调用)
@@ -546,44 +567,42 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
             Context context = LuaApplication.getInstance();
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
             int notificationId = 1001; // 固定 ID 以便更新同一条通知
-            long startTime = SystemClock.elapsedRealtime(); // 记录起始点
+            RimeMessage.DeployMessage.State state = msg.getData();
 
-            if (msg.getData() == RimeMessage.DeployMessage.State.Start) {
-                OpenCCDictManager.buildOpenCCDict();
+            if (state == RimeMessage.DeployMessage.State.Start) {
+                deployStartTime = SystemClock.elapsedRealtime();
+                scheduleOpenCCBuild();
 
                 // 发送通知，并实时显示耗时
                 Notification notification = new NotificationCompat.Builder(context, "rime_deploy_channel")
                         .setContentTitle("正在部署")
                         .setContentText("请稍候...")
-                        .setSmallIcon(R.drawable.icon) // 替换为你的图标
-                        .setOngoing(true) // 设置为正在进行，防止被划掉
-                        .setUsesChronometer(true) // 核心：开启计时器
+                        .setSmallIcon(R.drawable.icon)
+                        .setOngoing(true)
+                        .setUsesChronometer(true)
                         .setWhen(System.currentTimeMillis())
                         .build();
                 notificationManager.notify(notificationId, notification);
 
-            } else if (msg.getData() == RimeMessage.DeployMessage.State.Success) {
-                // 计算总耗时（秒）
-                long duration = (SystemClock.elapsedRealtime() - startTime) / 1000;
+            } else if (state == RimeMessage.DeployMessage.State.Success) {
+                long duration = deploymentDurationSeconds();
 
-                // 显示完成通知，并显示总耗时
                 Notification notification = new NotificationCompat.Builder(context, "rime_deploy_channel")
                         .setContentTitle("部署成功")
                         .setContentText("部署已完成，总耗时：" + duration + "秒")
-                        .setSmallIcon(R.drawable.icon) // 替换为你的图标
-                        .setOngoing(false) // 允许划掉
-                        .setUsesChronometer(false) // 停止计时
-                        .setTimeoutAfter(duration<5?1000:30000)
+                        .setSmallIcon(R.drawable.icon)
+                        .setOngoing(false)
+                        .setUsesChronometer(false)
+                        .setTimeoutAfter(duration < 5 ? 1000 : 30000)
                         .build();
                 notificationManager.notify(notificationId, notification);
-            } else if (msg.getData() == RimeMessage.DeployMessage.State.Failure) {
-                long duration = (SystemClock.elapsedRealtime() - startTime) / 1000;
+            } else if (state == RimeMessage.DeployMessage.State.Failure) {
+                long duration = deploymentDurationSeconds();
 
-                // 显示失败通知，并显示总耗时
                 Notification notification = new NotificationCompat.Builder(context, "rime_deploy_channel")
                         .setContentTitle("部署失败")
                         .setContentText("部署过程中出现错误，已停止。耗时：" + duration + "秒")
-                        .setSmallIcon(R.drawable.icon) // 替换为你的图标
+                        .setSmallIcon(R.drawable.icon)
                         .setOngoing(false)
                         .build();
                 notificationManager.notify(notificationId, notification);
@@ -609,6 +628,31 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
             isAsciiMode =statusCached.isAsciiMode();
             updateSchemaCached(status);
         }
+    }
+
+    private void scheduleOpenCCBuild() {
+        if (!openCCBuildScheduled.compareAndSet(false, true)) {
+            return;
+        }
+        OPENCC_EXECUTOR.execute(() -> {
+            try {
+                OpenCCDictManager.buildOpenCCDict();
+            } catch (Throwable e) {
+                Log.e("rime", "OpenCC dictionary build failed", e);
+            } finally {
+                openCCBuildScheduled.set(false);
+            }
+        });
+    }
+
+    private long deploymentDurationSeconds() {
+        long start = deployStartTime;
+        if (start <= 0L) {
+            return 0L;
+        }
+        long duration = Math.max(0L, SystemClock.elapsedRealtime() - start) / 1000L;
+        deployStartTime = 0L;
+        return duration;
     }
 
     private void updateSchemaCached(RimeProto.Status status) {
@@ -690,7 +734,7 @@ public class Rime implements RimeApi, RimeLifecycleOwner {
         System.loadLibrary("rime_jni");
     }
 
-    private static final List<Consumer<RimeMessage<?>>> rimeMessageHandlers = new ArrayList<>();
+    private static final List<Consumer<RimeMessage<?>>> rimeMessageHandlers = new CopyOnWriteArrayList<>();
 
     // init
     public static native void startupRime(

@@ -5,6 +5,7 @@
 
 package com.osfans.trime;
 
+import static com.osfans.trime.core.RimeKeyMap.RimeKey_Left;
 import static com.osfans.trime.core.RimeKeyMap.RimeKey_VoidSymbol;
 
 import android.app.AlertDialog;
@@ -84,8 +85,11 @@ import java.util.regex.Pattern;
 public class TrimeService extends InputMethodService {
     // 1. 常量与静态变量
     private static final String TAG = "TrimeService";
+    private static final String DEFAULT_CHINESE_SCHEMA = "luna_pinyin";
     private static TrimeService sInstance;
 
+    private volatile boolean mDestroyed = false;
+    public boolean isDestroyedService() { return mDestroyed; }
 
     // 成员变量 - 逻辑处理与状态
     private Rime mRime;
@@ -142,12 +146,13 @@ public class TrimeService extends InputMethodService {
                 mHandler.post(new Runnable() {
                     @Override
                     public void run() {
+                        if (mDestroyed || sInstance != TrimeService.this || mRime == null) {
+                            return;
+                        }
                         // String soft_cursor_key = "soft_cursor";
                         // Rime.setRimeOption(soft_cursor_key, true); //軟光標
                         // mRootInputView.setSchema(Rime.getCurrentRimeSchema());
-                        String id = Function.getPref(TrimeService.this).getString("select_schema_id", "");
-                        if (!TextUtils.isEmpty(id))
-                            Rime.selectRimeSchema(id);
+                        ensureUsableSchema();
                     }
                 });
             }
@@ -199,11 +204,21 @@ public class TrimeService extends InputMethodService {
 
     @Override
     public void onDestroy() {
+        mDestroyed = true;
+        Rime.unregisterRimeMessageHandler(mMessageHandler);
         unregisterClipEvents();
         mHandler.removeCallbacksAndMessages(null);
-        sInstance = null;
-        Rime.unregisterRimeMessageHandler(mMessageHandler);
-        mRime.finalize();
+        if (mRootInputView != null) {
+            mRootInputView.release();
+            mRootInputView = null;
+        }
+        if (mRime != null) {
+            mRime.finalize();
+            mRime = null;
+        }
+        if (sInstance == this) {
+            sInstance = null;
+        }
         ThemeManager.callFunction("onDestroy");
         super.onDestroy();
     }
@@ -633,6 +648,19 @@ public class TrimeService extends InputMethodService {
         //    return true;
         if (onRimeKey(Event.getRimeEvent(keyCode, mask))) {
             keyUpNeeded = true;
+        } else if (isComposing() && (keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT)) {
+            // 当处于输入编码状态（悬浮窗英文脚注可见）时，若向左移动到达最左侧边界（onRimeKey返回false），
+            // 循环回绕跳至最右侧末尾重新开始；反之向右到达最右侧边界时跳至最左端首部
+            String raw = Rime.getRimeRawInput();
+            if (!TextUtils.isEmpty(raw)) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    mRime.setRimeCaretPos(raw.length());
+                } else {
+                    mRime.setRimeCaretPos(0);
+                }
+                keyUpNeeded = true;
+                return true;
+            }
         } else if (handleAction(keyCode, mask) || handleOption(keyCode) || handleEnter(keyCode) || handleBack(keyCode)) {
             // Handled
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1 && Function.openCategory(this, keyCode)) {
@@ -709,9 +737,30 @@ public class TrimeService extends InputMethodService {
         return false; // 原有逻辑返回 false
     }
 
+    /**
+     * Preserve the original looping behavior when moving left through a preedit.
+     * Rewind is kept in Rime for normal navigation; this handles only its boundary.
+     */
+    private boolean rewindPreeditAtStart(int[] event) {
+        if (event[0] != RimeKey_Left
+                || event[1] == Rime.META_RELEASE_ON
+                || !isComposing()) {
+            return false;
+        }
+        RimeProto.Context context = Rime.getRimeContext();
+        String input = context != null ? context.getInput() : null;
+        if (TextUtils.isEmpty(input) || context.getCaretPos() > 0) {
+            return false;
+        }
+        mRime.moveCursorPos(input.length());
+        return true;
+    }
+
     private boolean onRimeKey(int[] event) {
         if (event[0] == RimeKey_VoidSymbol)
             return false;
+        if (rewindPreeditAtStart(event))
+            return true;
         boolean ret = mRime.processKey(event[0], event[1]);
         Log.w(TAG, "onRimeKey: " + ret);
         //commitText();
@@ -829,6 +878,9 @@ public class TrimeService extends InputMethodService {
     private int idx = 0;
 
     private void handleRimeMessage(RimeMessage<?> message) {
+        if (mDestroyed || sInstance != this) {
+            return;
+        }
         Log.w("rime", "handleRimeMessage:1 " + message.getClass() + ":" + message.getData());
         if (message instanceof RimeMessage.CommitTextMessage) {
             commitText(((RimeMessage.CommitTextMessage) message).data.getText());
@@ -843,13 +895,16 @@ public class TrimeService extends InputMethodService {
                 mHandler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        if (idx++ > 20)
+                        if (mDestroyed || sInstance != TrimeService.this || mRootInputView == null || idx++ > 20)
                             return;
                         //Log.w(TAG, "handleRimeMessage:getCurrentRimeSchema " + Rime.getCurrentRimeSchema());
-                        if (TextUtils.isEmpty(Rime.getCurrentRimeSchema())) {
+                        String schemaId = Rime.getCurrentRimeSchema();
+                        if (!isUsableSchemaId(schemaId) && idx <= 20) {
+                            ensureUsableSchema();
                             mHandler.postDelayed(this, 10);
                         } else {
-                            mRootInputView.setSchema(Rime.getCurrentRimeSchema());
+                            mRootInputView.setSchema(isUsableSchemaId(schemaId)
+                                    ? schemaId : ensureUsableSchema());
                         }
                     }
                 }, 10);
@@ -1119,6 +1174,35 @@ public class TrimeService extends InputMethodService {
 
     public void selectRimeSchema(String id) {
         mRime.selectSchema(id);
+    }
+
+    private static boolean isUsableSchemaId(String id) {
+        return !TextUtils.isEmpty(id) && !".default".equals(id);
+    }
+
+    /** Ensure the engine never remains on Rime's empty pseudo-schema. */
+    public String ensureUsableSchema() {
+        if (mDestroyed || sInstance != this) {
+            return DEFAULT_CHINESE_SCHEMA;
+        }
+        String current = Rime.getCurrentRimeSchema();
+        if (isUsableSchemaId(current)) return current;
+
+        String preferred = Function.getPref(this).getString("select_schema_id", "");
+        if (!isUsableSchemaId(preferred)) preferred = DEFAULT_CHINESE_SCHEMA;
+        Rime rime = mRime;
+        if (rime == null) {
+            Rime.selectRimeSchema(preferred);
+            Function.saveString(this, "select_schema_id", preferred);
+            return preferred;
+        }
+        boolean success = rime.selectSchema(preferred);
+        if (!success && !DEFAULT_CHINESE_SCHEMA.equals(preferred)) {
+            preferred = DEFAULT_CHINESE_SCHEMA;
+            rime.selectSchema(preferred);
+        }
+        Function.saveString(this, "select_schema_id", preferred);
+        return preferred;
     }
 
     public void deploy() {

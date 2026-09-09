@@ -134,11 +134,7 @@ public class DataManager {
             LuaApplication.getInstance().unApk("assets/shared",getSharedDataDir().getAbsolutePath());
             File f = new File(Config.getUserDataDir(), DEFAULT_CUSTOM_FILE_NAME);
             if(!f.exists()&&Config.getTheme().equals("default")){
-                LuaUtil.save(f.getAbsolutePath(),
-                        "      patch:\n" +
-                        "        schema_list:\n" +
-                        "          - schema: luna_pinyin\n"
-                );
+                LuaUtil.save(f.getAbsolutePath(), SCHEMA_LIST_CUSTOM_PATCH);
             }
             //if (BuildConfig.DEBUG || Config.getThemes().length==0) {
                 LuaApplication.getInstance().unApk("assets/themes", Config.getThemeDir());

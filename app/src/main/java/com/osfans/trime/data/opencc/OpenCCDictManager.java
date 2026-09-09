@@ -106,17 +106,31 @@ public final class OpenCCDictManager {
     /**
      * Convert internal text dict to opencc format
      */
-    public static void buildOpenCCDict() {
+    public static synchronized void buildOpenCCDict() {
         for (Dictionary d : getAllDictionaries()) {
-            if (d instanceof TextDictionary) {
-                long startTime = System.currentTimeMillis();
-                try {
-                    OpenCCDictionary r = ((TextDictionary) d).toOpenCCDictionary();
-                    long duration = System.currentTimeMillis() - startTime;
-                    //Timber.d("Took %d ms to convert to %s", duration, r);
-                } catch (Exception e) {
-                    //Timber.e(e, "Failed to convert %s", d);
-                }
+            if (!(d instanceof TextDictionary)) {
+                continue;
+            }
+            File source = d.getFile();
+            File target = new File(source.getParentFile(), d.getName() + "." + Dictionary.Type.OCD2.getExt());
+            // The converter rewrites the target, so a non-empty target newer than
+            // its source is a valid incremental hit. This avoids JNI conversion
+            // and disk I/O on every hot deploy while still rebuilding changed files.
+            if (source.isFile() && target.isFile()
+                    && target.length() > 0L
+                    && target.lastModified() >= source.lastModified()) {
+                continue;
+            }
+            long startTime = System.currentTimeMillis();
+            try {
+                OpenCCDictionary r = ((TextDictionary) d).toOpenCCDictionary(target);
+                // Preserve the source timestamp so the next check remains stable
+                // even when the filesystem has coarse timestamp resolution.
+                target.setLastModified(source.lastModified());
+                long duration = System.currentTimeMillis() - startTime;
+                //Timber.d("Took %d ms to convert to %s", duration, r);
+            } catch (Exception e) {
+                //Timber.e(e, "Failed to convert %s", d);
             }
         }
     }
