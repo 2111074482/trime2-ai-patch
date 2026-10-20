@@ -40,12 +40,14 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import com.androlua.LuaApplication;
+import com.osfans.trime.AiClient;
 import com.osfans.trime.BuildConfig;
 import com.osfans.trime.Config;
 import com.osfans.trime.TrimeService;
 import com.osfans.trime.VivoGpt;
 import com.osfans.trime.core.DataManager;
 import com.osfans.trime.dialog.DeployDialog;
+import com.osfans.trime.theme.ThemeManager;
 
 import org.luaj.LuaTable;
 
@@ -261,7 +263,7 @@ public class Function {
         if (command == null)
             return s;
         String path = Config.getScriptsPath(command);
-        Log.w(TAG, "handle: "+path );
+        Log.w(TAG, "handle: " + path);
         if (new File(path).exists()) {
             Object ret = context.doFile(path, option);
             if (ret == null)
@@ -280,7 +282,7 @@ public class Function {
         if (command == null)
             return s;
         String path = Config.getScriptsPath(command);
-        Log.w(TAG, "handle: "+path );
+        Log.w(TAG, "handle: " + path);
         if (new File(path).exists()) {
             Object ret = context.doFile(path, option);
             if (ret == null)
@@ -292,19 +294,19 @@ public class Function {
             return ret.toString();
         }
         switch (command) {
-             case "gpt": {
+            case "gpt": {
                 if (TextUtils.isEmpty(option)) {
                     Toast.makeText(context, "输入内容不能为空，请输入一些文字后重试", Toast.LENGTH_SHORT).show();
                     return null;
                 }
                 Toast.makeText(context, "正在生成，请稍后...", Toast.LENGTH_SHORT).show();
-                 // 获取当前服务所在的屏幕或默认屏幕
-                 DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
-                 Display defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
+                // 获取当前服务所在的屏幕或默认屏幕
+                DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
+                Display defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
 
 // 为特定屏幕创建 Context
-                 Context displayContext = context.createDisplayContext(defaultDisplay);
-                 EditText tv = new EditText(displayContext);
+                Context displayContext = context.createDisplayContext(defaultDisplay);
+                EditText tv = new EditText(displayContext);
                 if ((LuaApplication.getInstance().getResources().getConfiguration().uiMode & UI_MODE_NIGHT_MASK) == UI_MODE_NIGHT_YES) {
                     tv.setTextColor(0xffffffff);
                 } else {
@@ -330,6 +332,23 @@ public class Function {
                             }
                         }).create());
                 dlg.getButton(DialogInterface.BUTTON1).setEnabled(false);
+                AiClient aiClient = ThemeManager.getAiClient();
+                if (aiClient != null) {
+                    aiClient.chat(option, new AiClient.AiCallback() {
+                        @Override
+                        public void onSuccess(String result) {
+                                dlg.getButton(DialogInterface.BUTTON1).setEnabled(true);
+                                markwon.setMarkdown(tv, result);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            dlg.getButton(DialogInterface.BUTTON1).setEnabled(true);
+                            tv.setText(e.getMessage());
+                        }
+                    });
+                    break;
+                }
                 VivoGpt.gpt(option, new HttpUtil.HttpCallback() {
                     @Override
                     public void onDone(HttpUtil.HttpResult result) {
@@ -380,8 +399,7 @@ public class Function {
                                 mProgressDialog.dismiss();
                                 DisplayManager displayManager = (DisplayManager) context.getSystemService(Context.DISPLAY_SERVICE);
                                 Display defaultDisplay = displayManager.getDisplay(Display.DEFAULT_DISPLAY);
-
-// 为特定屏幕创建 Context
+                                // 为特定屏幕创建 Context
                                 Context displayContext = context.createDisplayContext(defaultDisplay);
                                 EditText tv = new EditText(displayContext);
                                 if ((LuaApplication.getInstance().getResources().getConfiguration().uiMode & UI_MODE_NIGHT_MASK) == UI_MODE_NIGHT_YES) {
@@ -489,6 +507,24 @@ public class Function {
                     return null;
                 }
                 Toast.makeText(context, "正在生成，请稍后...", Toast.LENGTH_SHORT).show();
+                AiClient aiClient = ThemeManager.getAiClient();
+                if (aiClient != null) {
+                    aiClient.chat(option, new AiClient.AiCallback() {
+                        @Override
+                        public void onSuccess(String result) {
+                            if (!context.isInputViewShown())
+                                return;
+                            context.commitTextAndClearComposition(result);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            Toast.makeText(context,e.getMessage(),Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                    break;
+                }
+
                 VivoGpt.gpt(option, new HttpUtil.HttpCallback() {
                     @Override
                     public void onDone(HttpUtil.HttpResult result) {
@@ -515,10 +551,10 @@ public class Function {
                 if (option.startsWith("http")) {
                     try {
                         context.startActivity(new Intent(Intent.ACTION_VIEW).addFlags(FLAG_ACTIVITY_NEW_TASK).setData(Uri.parse(option)));
-                    }catch (Exception e){
-                        Log.w(TAG, "handle: "+option );
+                    } catch (Exception e) {
+                        Log.w(TAG, "handle: " + option);
                         e.printStackTrace();
-                        Toast.makeText(context,e.toString(),Toast.LENGTH_SHORT).show();
+                        Toast.makeText(context, e.toString(), Toast.LENGTH_SHORT).show();
                     }
                     break;
                 }
@@ -528,14 +564,14 @@ public class Function {
                 new DeployDialog(context).show(context.getToken());
                 break;
             case "broadcast":
-                if(option.equals("com.osfans.trime.action.DEPLOY"))
+                if (option.equals("com.osfans.trime.action.DEPLOY"))
                     new DeployDialog(context).show(context.getToken());
                 else
                     context.sendBroadcast(new Intent(option)); //廣播
                 break;
             case "add_phrase":
                 TrimeService.getInstance().addPhrase(option); //新建短语
-                Toast.makeText(context,"已添加到短语 "+option,Toast.LENGTH_SHORT).show();
+                Toast.makeText(context, "已添加到短语 " + option, Toast.LENGTH_SHORT).show();
                 break;
             case "commit":
                 s = option;
@@ -552,17 +588,18 @@ public class Function {
     }
 
     public static void saveString(Context context, String id, String s) {
-        getPref(context).edit().putString(id,s).apply();
+        getPref(context).edit().putString(id, s).apply();
     }
 
     public static String loadString(Context context, String id, String def) {
-        return getPref(context).getString(id,def);
+        return getPref(context).getString(id, def);
     }
 
     public static void saveBoolean(Context context, String id, boolean s) {
-        getPref(context).edit().putBoolean(id,s).apply();
+        getPref(context).edit().putBoolean(id, s).apply();
     }
+
     public static boolean loadBoolean(Context context, String id, boolean def) {
-        return getPref(context).getBoolean(id,def);
+        return getPref(context).getBoolean(id, def);
     }
 }

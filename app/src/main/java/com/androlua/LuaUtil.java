@@ -1001,8 +1001,8 @@ public class LuaUtil {
     public static void checkEnabled(Activity activity) {
         if (!isEnabled(activity)) {
             new AlertDialog.Builder(activity)
-                    .setTitle("启用中文输入法2")
-                    .setMessage("在设置中启动中文输入法2才能开始使用")
+                    .setTitle("启用中文兔输入法")
+                    .setMessage("在设置中启动中文兔输入法才能开始使用")
                     .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
@@ -1041,8 +1041,8 @@ public class LuaUtil {
     public static void checkSelect(Activity activity) {
         if (!isSelect(activity)) {
             new AlertDialog.Builder(activity)
-                    .setTitle("选择中文输入法2")
-                    .setMessage("在弹出的列表中选择中文输入法2")
+                    .setTitle("选择中文兔输入法")
+                    .setMessage("在弹出的列表中选择中文兔输入法")
                     .setPositiveButton(android.R.string.ok, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {

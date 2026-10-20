@@ -30,6 +30,7 @@ import android.view.inputmethod.EditorInfo;
 import com.androlua.LuaApplication;
 import com.androlua.LuaBitmap;
 import com.androlua.LuaUtil;
+import com.osfans.trime.AiClient;
 import com.osfans.trime.BuildConfig;
 import com.osfans.trime.Config;
 import com.osfans.trime.Key;
@@ -63,11 +64,13 @@ public class ThemeManager {
     private static Style mStyle;
     private static Vibrator vibrator;
     private static SoundPool mSoundPool;
-    private static InlineModeType mInlineModeType=null;
+    private static InlineModeType mInlineModeType = null;
+    private static AiClient mAiClient;
 
     public static ResourceFinder getFinder() {
         return mResourceFinder;
     }
+
     public static Globals getGlobals() {
         return mGlobals;
     }
@@ -163,11 +166,11 @@ public class ThemeManager {
         String styleName = Function.loadString(LuaApplication.getInstance(), Config.getStyleKey(name), mGlobals.get("style").optjstring("light"));
         setStyle(styleName);
         Key.presetKeys = getPresetKeys();
+        loadAiClient();
         //Style candidate = getStyle().getStyle("candidate");
         //Rime.setRimeOption("_hide_candidate",!candidate.get("show").optboolean(true));
         //Style comment = getStyle().getStyle("candidate").getStyle("comment");
         //Rime.setRimeOption("_hide_comment",!comment.get("show").optboolean(true));
-
     }
 
     public static void sendMsg(String s) {
@@ -178,7 +181,7 @@ public class ThemeManager {
 
     public static void setStyle(String name) {
         mStyle = null;
-        mInlineModeType=null;
+        mInlineModeType = null;
         clearSound();
         Config.setStyle(name);
         mColor = new LuaTable(mGlobals);
@@ -214,19 +217,19 @@ public class ThemeManager {
     }
 
     public static int getHeight() {
-        if(Rime.getRimeOption("_hide_candidate"))
+        if (Rime.getRimeOption("_hide_candidate"))
             return getStyle().getSize("height", mCandidateHeight + mKeyboardHeight) - getStyle().getStyle("keyboard").getSize("height", mKeyboardHeight) - getStyle().getStyle("candidate").getSize("height", mCandidateHeight) + getKeyboardHeight();
         return getStyle().getSize("height", mCandidateHeight + mKeyboardHeight) - getStyle().getStyle("keyboard").getSize("height", mKeyboardHeight) - getStyle().getStyle("candidate").getSize("height", mCandidateHeight) + getKeyboardHeight() + getCandidateHeight();
     }
 
     public static int getContentHeight() {
-        if(Rime.getRimeOption("_hide_candidate"))
+        if (Rime.getRimeOption("_hide_candidate"))
             return getKeyboardHeight();
         return getCandidateHeight() + getKeyboardHeight();
     }
 
     public static int getRawContentHeight() {
-        if(Rime.getRimeOption("_hide_candidate"))
+        if (Rime.getRimeOption("_hide_candidate"))
             return getStyle().getStyle("keyboard").getSize("height", mKeyboardHeight);
         return getStyle().getStyle("keyboard").getSize("height", mKeyboardHeight) + getStyle().getStyle("candidate").getSize("height", mCandidateHeight);
     }
@@ -238,8 +241,9 @@ public class ThemeManager {
     public static int getKeyboardHeight() {
         return (int) (getStyle().getStyle("keyboard").getSize("height", mKeyboardHeight) * Config.getKeyboardHeightScale());
     }
+
     public static InlineModeType getInlinePreedit() {
-        if(mInlineModeType!=null)
+        if (mInlineModeType != null)
             return mInlineModeType;
         switch (mStyle.getStyle("preedit").getString("inline", "none")) {
             case "preview":
@@ -248,13 +252,13 @@ public class ThemeManager {
                 break;
             case "preedit":
             case "composition":
-                mInlineModeType =  InlineModeType.INLINE_COMPOSITION;
+                mInlineModeType = InlineModeType.INLINE_COMPOSITION;
                 break;
             case "input":
-                mInlineModeType =  InlineModeType.INLINE_INPUT;
+                mInlineModeType = InlineModeType.INLINE_INPUT;
                 break;
             default:
-                mInlineModeType =  InlineModeType.INLINE_NONE;
+                mInlineModeType = InlineModeType.INLINE_NONE;
                 break;
         }
         return mInlineModeType;
@@ -387,12 +391,47 @@ public class ThemeManager {
     }
 
     public static Object callFunction(String s, Object... args) {
-        if(mGlobals==null)
+        if (mGlobals == null)
             return null;
         LuaValue f = mGlobals.get(s);
-        if(f.isfunction()){
+        if (f.isfunction()) {
             return f.jcall(args);
         }
         return null;
     }
+
+
+    private static void loadAiClient() {
+        mAiClient = null;
+        LuaValue aiConfig = mGlobals.get("ai_config");
+        if (aiConfig.istable()) {
+            LuaValue base_url = aiConfig.get("base_url");
+            if (!base_url.isstring() || base_url.length() == 0)
+                return;
+            LuaValue model = aiConfig.get("model");
+            if (!model.isstring() || model.length() == 0)
+                return;
+            LuaValue key = aiConfig.get("key");
+            if (!key.isstring() || key.length() == 0)
+                return;
+            LuaValue mSystemPrompt = aiConfig.get("system_prompt");
+            LuaValue mExtraParams = aiConfig.get("extra_params");
+
+            mAiClient = new AiClient(base_url.tojstring(), key.tojstring());
+            mAiClient.setModel(model.tojstring());
+            if (mSystemPrompt.isstring() && mSystemPrompt.length() > 0) {
+                mAiClient.setSystemPrompt(mSystemPrompt.tojstring());
+            }
+            if (mExtraParams.isstring()) {
+                mAiClient.setExtraParams(mExtraParams.tojstring());
+            } else if (mExtraParams.istable()) {
+                mAiClient.setExtraParams(org.luaj.android.json.encode(mExtraParams));
+            }
+        }
+    }
+
+    public static AiClient getAiClient() {
+        return mAiClient;
+    }
+
 }
