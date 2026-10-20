@@ -1,13 +1,16 @@
 package com.osfans.trime;
 
+import android.content.DialogInterface;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.Log;
 
 import com.androlua.AsyncTaskX;
+import com.osfans.trime.theme.ThemeManager;
 import com.osfans.trime.util.HttpUtil;
 
 import org.jetbrains.annotations.NotNull;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -230,6 +233,7 @@ public class VivoGpt {
                 BufferedReader stream = new BufferedReader(new InputStreamReader(response.body().byteStream()));
                 boolean think=true;
                 String line = stream.readLine();
+                Log.w(TAG, "onResponse: "+line );
                 while (line != null) {
                     try {
                         if (!TextUtils.isEmpty(line)) {
@@ -261,6 +265,23 @@ public class VivoGpt {
     }
 
     public static void gpt1(String s, HttpUtil.HttpCallback callback) {
+        AiClient aiClient = ThemeManager.getAiClient();
+        if (aiClient != null) {
+            aiClient.chat(s, new AiClient.AiCallback() {
+                @Override
+                public void onSuccess(String result) {
+                    callback.onDone(new HttpUtil.HttpResult(result));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    callback.onDone(new HttpUtil.HttpResult(e.getMessage()));
+                }
+            });
+            return;
+        }
+
+
         new AsyncTaskX<String, String, String>() {
 
             @Override
@@ -275,9 +296,12 @@ public class VivoGpt {
             @Override
             protected void onPostExecute(String s) {
                 super.onPostExecute(s);
-                Log.w(TAG, "onPostExecute: " + s);
                 try {
                     s = new JSONObject(s).getJSONObject("data").getString("content");
+                } catch (JSONException e) {
+                }
+                try {
+                    s = new JSONArray(s).getJSONObject(0).getString("text");
                 } catch (JSONException e) {
                 }
                 callback.onDone(new HttpUtil.HttpResult(s));
@@ -359,9 +383,12 @@ public class VivoGpt {
             @Override
             protected void onPostExecute(String s) {
                 super.onPostExecute(s);
-                Log.w(TAG, "onPostExecute: " + s);
                 try {
                     s = new JSONObject(s).getJSONObject("data").getString("content");
+                } catch (JSONException e) {
+                }
+                try {
+                    s = new JSONArray(s).getJSONObject(0).getString("text");
                 } catch (JSONException e) {
                 }
                 callback.onDone(new HttpUtil.HttpResult(s));

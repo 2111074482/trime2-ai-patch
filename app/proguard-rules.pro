@@ -61,6 +61,9 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.openjsse.**
 -keep class com.android.cglib.** { *; }
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+
 # =================================================================
 # 🛡️ 精准保护 androidx 包下的视图 (Views) 和适配器 (Adapters)
 # =================================================================

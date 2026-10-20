@@ -15,6 +15,16 @@ function get_keyboard(id, alphabet)
     end
     return keyboard
 end
+
+--自定义ai配置，未做流式输出兼容，需关闭流式输出
+ai_config = {
+    base_url="",--api地址
+    model="",--模型名称
+    key="",--鉴权key
+    system_prompt="",--系统参数
+    extra_params="",--扩展参数，json字符串或table
+}
+
 action_labels = {
     none = "Enter", --默认状态
     send = "发送", --回车键发送按钮文本

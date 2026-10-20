@@ -51,6 +51,8 @@ public class InputView extends FrameLayout implements ResourceFinder {
         setClipChildren(false);
         setClipToPadding(false);
         String id = Rime.getRimeStatus().getSchemaId();
+        // 合并：保留本地的 resolveSchemaId（已覆盖空值/".default"/已保存 schema 的兜底），
+        // 上游在此的 TextUtils.isEmpty 回退是它的子集，故不再重复。
         setKeyboard(resolveSchemaId(context, id));
     }
 
@@ -58,7 +60,7 @@ public class InputView extends FrameLayout implements ResourceFinder {
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         try {
             super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-        }catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -66,6 +68,9 @@ public class InputView extends FrameLayout implements ResourceFinder {
     private void setKeyboardView(KeyboardView keyboardView) {
         if (keyboardView.equals(mKeyboardView))
             return;
+        if (keyboardView.isLock()) {
+            mViewCache.put(".default", keyboardView);
+        }
         oldView = mKeyboardView;
         mKeyboardView = keyboardView;
         ViewParent parent = keyboardView.getParent();
@@ -134,15 +139,15 @@ public class InputView extends FrameLayout implements ResourceFinder {
 
     public void setKeyboard(String id) {
         Log.w("TAG", "setKeyboard:s " + id);
-        if(".last".equals(id)){
-            if(oldView!=null)
+        if (".last".equals(id)) {
+            if (oldView != null)
                 setKeyboardView(oldView);
             return;
         }
         id = resolveSchemaId(getContext(), id);
         if (id.equals(mCurrentSchemaId)) return;
         mCurrentSchemaId = id;
-        id=getKeyboardId(id);
+        id = getKeyboardId(id);
         Log.w("TAG", "setKeyboard:e " + id);
         // 获取或创建 KeyboardView
         KeyboardView targetView = mViewCache.get(id);
@@ -174,12 +179,12 @@ public class InputView extends FrameLayout implements ResourceFinder {
                 targetView = new AbsKeyboardView(getContext(), globals);
             } else if (globals.get("key_maps").istable()) {
                 SymbolsKeyboardView symbolsView = mSymbolsViewCache.get(id);
-                if(symbolsView==null){
-                    symbolsView=new SymbolsKeyboardView(getContext(), globals);
-                    mSymbolsViewCache.put(id,symbolsView);
+                if (symbolsView == null) {
+                    symbolsView = new SymbolsKeyboardView(getContext(), globals);
+                    mSymbolsViewCache.put(id, symbolsView);
                 }
                 TrimeService.getInstance().showCustomView(symbolsView);
-                mCurrentSchemaId=null;
+                mCurrentSchemaId = null;
                 return;
             } else {
                 func = globals.loadfilex("themes/default/keyboards/qwerty36.lua");
@@ -188,9 +193,6 @@ public class InputView extends FrameLayout implements ResourceFinder {
                 targetView = new RowKeyboardView(getContext(), globals);
             }
             mViewCache.put(id, targetView);
-            if (targetView.isLock()) {
-                mViewCache.put(".default", targetView);
-            }
         }
         setKeyboardView(targetView);
     }
@@ -199,40 +201,40 @@ public class InputView extends FrameLayout implements ResourceFinder {
         if (id.isEmpty()) {
             String k = Config.getKeyboard(".default");
             if (!TextUtils.isEmpty(k)) {
-                if(mViewCache.containsKey(id))
+                if (mViewCache.containsKey(id))
                     return id;
                 if (new File(findFile(id + ".lua")).exists())
                     return id;
             }
             id = Rime.getRimeStatus().getSchemaId();
-            if(TextUtils.isEmpty(id))
-                id = Function.getPref(getContext()).getString("select_schema_id","");
+            if (TextUtils.isEmpty(id))
+                id = Function.getPref(getContext()).getString("select_schema_id", "");
         }
         Log.w("TAG", "setKeyboard:2 " + id);
-        if(mViewCache.containsKey(id))
+        if (mViewCache.containsKey(id))
             return id;
         if (new File(findFile(id + ".lua")).exists())
             return id;
 
         id = ThemeManager.getKeyboard(id);
         Log.w("TAG", "setKeyboard:4 " + id);
-        if(mViewCache.containsKey(id))
+        if (mViewCache.containsKey(id))
             return id;
         if (new File(findFile(id + ".lua")).exists())
             return id;
 
         id = Rime.getRimeStatus().getSchemaId();
-        if(TextUtils.isEmpty(id))
-            id = Function.getPref(getContext()).getString("select_schema_id","");
+        if (TextUtils.isEmpty(id))
+            id = Function.getPref(getContext()).getString("select_schema_id", "");
         Log.w("TAG", "setKeyboard:5 " + id);
-        if(mViewCache.containsKey(id))
+        if (mViewCache.containsKey(id))
             return id;
         if (new File(findFile(id + ".lua")).exists())
             return id;
 
         id = ThemeManager.getKeyboard(id);
         Log.w("TAG", "setKeyboard:6 " + id);
-        if(mViewCache.containsKey(id))
+        if (mViewCache.containsKey(id))
             return id;
         if (new File(findFile(id + ".lua")).exists())
             return id;

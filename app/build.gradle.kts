@@ -42,8 +42,8 @@ android {
         applicationId = "com.nirenr.trime"
         minSdk = 21
         targetSdk = 35
-        versionCode = 82
-        versionName = "0.8.2"
+        versionCode = 83
+        versionName = "0.8.3"
 
         multiDexEnabled = true
         buildConfigField("String", "BUILDER", "\"${project.builder}\"")
@@ -217,6 +217,7 @@ dependencies {
     //    artifact { type = "aar" }
     //}
     implementation("com.squareup.okhttp3:okhttp:4.9.1")
+    implementation("com.google.code.gson:gson:2.8.6")
     // Testing
     //testImplementation(libs.junit)
     //testImplementation(libs.kotest.runner.junit5)
