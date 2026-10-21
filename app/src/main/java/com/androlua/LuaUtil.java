@@ -657,7 +657,16 @@ public class LuaUtil {
             e.printStackTrace();
         }
     }
-
+    public static void save(String path, byte[] bs) {
+        try {
+            new File(path).getParentFile().mkdirs();
+            FileOutputStream out = new FileOutputStream(path);
+            out.write(bs);
+            out.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
     public static void save(OutputStream out, LuaString text) {
         try {
             out.write(text.m_bytes, text.m_offset, text.m_length);

@@ -66,12 +66,12 @@ public class KeyStyle extends Style {
 
     // 样式引用缓存
     private KeyStyle mHintStyle, mLongClickStyle, mPressedStyle;
-    private int mGravity=-1;
+    private int mGravity = -1;
     private VibrationEffect mVibrationEffect;
     private boolean mHasCachedVibrationEffect;
     private boolean mHasCachedVibrationEnabled;
     private boolean mVibrationEnabled;
-    private int mSoundEffect=-1;
+    private int mSoundEffect = -1;
     private boolean mHasCachedSoundEffect;
     private boolean mHasCachedSoundEnabled;
     private boolean mSoundEnabled;
@@ -184,7 +184,6 @@ public class KeyStyle extends Style {
     }
 
 
-
     // --- 嵌套样式引用缓存 ---
 
     public KeyStyle getHintKeyStyle() {
@@ -238,8 +237,8 @@ public class KeyStyle extends Style {
         return mVibrationEffect;
     }
 
-    public boolean isVibrationEnabled(){
-        if(!mHasCachedVibrationEnabled) {
+    public boolean isVibrationEnabled() {
+        if (!mHasCachedVibrationEnabled) {
             mHasCachedVibrationEnabled = true;
             mVibrationEnabled = get("vibration_enabled").toboolean();
         }
@@ -253,11 +252,11 @@ public class KeyStyle extends Style {
             if (ve.isstring()) {
                 String s = ve.tojstring();
                 String path = Config.getStylePath(s);
-                if(new File(path).exists()){
+                if (new File(path).exists()) {
                     mSoundEffect = ThemeManager.loadSound(path);
                 } else {
                     path = Config.getSoundPath(s);
-                    if(new File(path).exists())
+                    if (new File(path).exists())
                         mSoundEffect = ThemeManager.loadSound(path);
                 }
             }
@@ -265,8 +264,8 @@ public class KeyStyle extends Style {
         return mSoundEffect;
     }
 
-    public boolean isSoundEnabled(){
-        if(!mHasCachedSoundEnabled) {
+    public boolean isSoundEnabled() {
+        if (!mHasCachedSoundEnabled) {
             mHasCachedSoundEnabled = true;
             mSoundEnabled = get("sound_enabled").toboolean();
         }
@@ -274,25 +273,25 @@ public class KeyStyle extends Style {
     }
 
     public long getLongClickTime() {
-        if(mLongClickTime==0)
-            mLongClickTime=get("long_click_time").optlong(1000);
+        if (mLongClickTime == 0)
+            mLongClickTime = get("long_click_time").optlong(1000);
         return mLongClickTime;
     }
 
     public long getRepeatClickTime() {
-        if(mRepeatClickTime==0)
-            mRepeatClickTime=get("repeat_click_time").optlong(200);
+        if (mRepeatClickTime == 0)
+            mRepeatClickTime = get("repeat_click_time").optlong(200);
         return mRepeatClickTime;
     }
 
-    public Typeface getFont(){
-        if(mTypeface==null)
+    public Typeface getFont() {
+        if (mTypeface == null)
             mTypeface = getFont("font");
         return mTypeface;
     }
 
-    public boolean isShow(){
-        if(!mHasCachedShow) {
+    public boolean isShow() {
+        if (!mHasCachedShow) {
             LuaValue show = get("show");
             mShow = show.isnil() || show.toboolean();
             mHasCachedShow = true;
@@ -306,15 +305,15 @@ public class KeyStyle extends Style {
         CharSequence s = mSpanCache.get(text);
         if (s != null)
             return s;
-        String path = Config.findImagePath(text.endsWith(".png")?text:text + ".png");
+        String path = Config.findImagePath(text.endsWith(".png") ? text : text + ".png");
         if (!TextUtils.isEmpty(path)) {
             SpannableString span = new SpannableString(text);
             try {
                 Bitmap bitmap = LuaBitmap.getLocalBitmap(path);
                 int targetColor = getTextColor(); // 你的目标颜色（例如 Trime 主题色）
                 BitmapDrawable bmp = new BitmapDrawable(bitmap);
-                if(getSingleColorIfPure(bitmap)==null){
-                    if(targetColor!=0){
+                if (getSingleColorIfPure(bitmap) == null) {
+                    if (targetColor != 0 && (targetColor & 0x00FFFFFF) != 0) {
                         float r = Color.red(targetColor) / 255f;
                         float g = Color.green(targetColor) / 255f;
                         float b = Color.blue(targetColor) / 255f;
@@ -325,11 +324,11 @@ public class KeyStyle extends Style {
                         float lg = 0.715f;
                         float lb = 0.072f;
 
-                        ColorMatrix cm = new ColorMatrix(new float[] {
+                        ColorMatrix cm = new ColorMatrix(new float[]{
                                 lr * r, lg * r, lb * r, 0, 0,  // 新的 R = (原R*lr + 原G*lg + 原B*lb) * 目标R
                                 lr * g, lg * g, lb * g, 0, 0,  // 新s G = (原R*lr + 原G*lg + 原B*lb) * 目标G
                                 lr * b, lg * b, lb * b, 0, 0,  // 新的 B = (原R*lr + 原G*lg + 原B*lb) * 目标B
-                                0,      0,      0,      a, 0   // 保持原图透明度并乘以目标Alpha
+                                0, 0, 0, a, 0   // 保持原图透明度并乘以目标Alpha
                         });
 
                         ColorFilter filter = new ColorMatrixColorFilter(cm);
@@ -340,7 +339,7 @@ public class KeyStyle extends Style {
                     bmp.setColorFilter(colorFilter);
                 }
 
-                bmp.setBounds(0,0, ThemeManager.dp2px(getTextSize()), ThemeManager.dp2px(getTextSize()));
+                bmp.setBounds(0, 0, ThemeManager.dp2px(getTextSize()), ThemeManager.dp2px(getTextSize()));
                 ImageSpan image = new ImageSpan(bmp, DynamicDrawableSpan.ALIGN_CENTER);
                 span.setSpan(image, 0, text.length(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE);
                 mSpanCache.put(text, span);
@@ -355,6 +354,7 @@ public class KeyStyle extends Style {
 
     /**
      * 判断图片是否为单色图标（忽略透明区域）
+     *
      * @param bitmap 待检测的位图
      * @return 如果图片除透明外只有一种 RGB 颜色，返回该颜色值（包含原始Alpha）；否则返回 null
      */

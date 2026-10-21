@@ -425,7 +425,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
                 .scaleX(previewStyle.getScaleX())
                 .scaleY(previewStyle.getScaleY())
                 .translationZ(1)
-                .translationY(-getHeight() * previewStyle.getScaleY() * 1.01f)
+                .translationY(-previewStyle.getHeight(getHeight()) * previewStyle.getScaleY() * 1.01f)
                 .translationX(0)
                 .setDuration(100)
                 .alpha(1.f)
@@ -831,7 +831,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
                     keyPreview.setOutlineSpotShadowColor(dShadowColor);
                 }
             }
-            addView(keyPreview, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            addView(keyPreview, new LayoutParams(previewStyle.getWidth(ViewGroup.LayoutParams.MATCH_PARENT), previewStyle.getHeight(ViewGroup.LayoutParams.MATCH_PARENT), Gravity.CENTER));
         }
         // ====== 新增：初始化按下遮罩 View ======
         mMaskStyle = mPressedStyle.getKeyStyle("mask"); // 支持在配色/主题样式中单独配置 mask 属性

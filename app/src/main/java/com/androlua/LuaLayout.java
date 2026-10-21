@@ -363,7 +363,7 @@ public class LuaLayout {
             long color = Long.parseLong(colorString.substring(1), 16);
             if (colorString.length() <= 7) {
                 // Set the alpha value
-                color |= 0x00000000ff000000;
+                color |= 0x00000000ff000000L;
             }
             return (int) color;
         }
