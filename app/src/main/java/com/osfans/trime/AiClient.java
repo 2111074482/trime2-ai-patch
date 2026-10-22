@@ -13,7 +13,9 @@ import com.google.gson.JsonParser;
 
 import okhttp3.*;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -135,6 +137,10 @@ public class AiClient {
     /**
      * 语音识别（创建新会话并发送，返回 AiSession）
      */
+    public AiSession recognizeAudio(byte[] audioBytes, AiCallback callback) {
+        return recognizeAudio(mModel, mSystemPrompt, mPrompt, audioBytes, null, mExtraParams, callback);
+    }
+
     public AiSession recognizeAudio(String model, String prompt, byte[] audioBytes, String audioFormat, AiCallback callback) {
         return recognizeAudio(model, mSystemPrompt, prompt, audioBytes, audioFormat, mExtraParams, callback);
     }
@@ -217,7 +223,16 @@ public class AiClient {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
+                /*BufferedReader stream = new BufferedReader(new InputStreamReader(response.body().byteStream()));
+                String line = stream.readLine();
+                while (line!=null) {
+                    Log.w("speech", "onResponse: "+line );
+                    line = stream.readLine();
+                }*/
+
+
                 try (Response res = response) {
+
                     String respBody = res.body() != null ? res.body().string() : "";
                     if (!res.isSuccessful()) {
                         postFailure(callback, new Exception("API Request Failed [" + res.code() + "]: " + respBody));
@@ -418,6 +433,10 @@ public class AiClient {
         /**
          * 连续对话：补充语音识别
          */
+        public void recognizeAudio(byte[] audioBytes, AiCallback callback) {
+            recognizeAudio(null, audioBytes, null, mExtraJsonParams, callback);
+        }
+
         public void recognizeAudio(String prompt, byte[] audioBytes, String audioFormat, AiCallback callback) {
             recognizeAudio(prompt, audioBytes, audioFormat, mExtraJsonParams, callback);
         }
@@ -425,18 +444,19 @@ public class AiClient {
         public void recognizeAudio(String prompt, byte[] audioBytes, String audioFormat, String extraJsonParams, AiCallback callback) {
             mExtraJsonParams=extraJsonParams;
             String base64Audio = Base64.encodeToString(audioBytes, Base64.NO_WRAP);
+            String dataUrl = "data:audio/" + (audioFormat != null ? audioFormat : "wav") + ";base64," + base64Audio;
 
             JsonArray contentArray = new JsonArray();
             JsonObject textObj = new JsonObject();
             textObj.addProperty("type", "text");
-            textObj.addProperty("text", prompt != null && !prompt.isEmpty() ? prompt : "请转写这段语音的内容");
+            textObj.addProperty("text", prompt != null && !prompt.isEmpty() ? prompt : "请将音频中的语音内容完整转写为文本，不要添加解释");
             contentArray.add(textObj);
 
             JsonObject audioObj = new JsonObject();
             audioObj.addProperty("type", "input_audio");
             JsonObject inputAudio = new JsonObject();
-            inputAudio.addProperty("data", base64Audio);
-            inputAudio.addProperty("format", audioFormat != null ? audioFormat : "mp3");
+            inputAudio.addProperty("data", dataUrl);
+            inputAudio.addProperty("format", audioFormat != null ? audioFormat : "wav");
             audioObj.add("input_audio", inputAudio);
             contentArray.add(audioObj);
 
@@ -444,7 +464,7 @@ public class AiClient {
             userMsg.addProperty("role", "user");
             userMsg.add("content", contentArray);
             history.add(userMsg);
-
+            Log.w("speech", "recognizeAudio: "+userMsg.toString() );
             executeAndAppendResponse(extraJsonParams, callback);
         }
 

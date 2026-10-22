@@ -38,10 +38,12 @@ import android.view.accessibility.AccessibilityManager;
 import android.widget.Toast;
 
 
+import com.androlua.LuaUtil;
 import com.osfans.trime.data.opencc.OpenCCDictManager;
 import com.osfans.trime.speech.RecognizerListener;
 import com.osfans.trime.speech.VivoRecognizer;
 import com.osfans.trime.theme.ThemeManager;
+import com.osfans.trime.util.AudioRecorderHelper;
 import com.osfans.trime.util.Function;
 import com.osfans.trime.core.Rime;
 
@@ -64,6 +66,8 @@ class Speech implements RecognitionListener, RecognizerListener {
     public static final String config = "config";
 
     private final SoundPool mSoundPool;
+    private final AiClient mAsrClient;
+    private AudioRecorderHelper mAudioRecorderHelper;
     private VivoRecognizer vSpeech;
     private int mSoundCancel;
     private int mSoundError;
@@ -88,7 +92,10 @@ class Speech implements RecognitionListener, RecognizerListener {
     public Speech(TrimeService context) {
         this.context = context;
         String[] name = Function.getPref(context).getString("recognition_service", "vivo").split("/");
-        if (name.length == 1) {
+        mAsrClient = ThemeManager.getAsrClient();
+        if (mAsrClient != null) {
+            mAudioRecorderHelper = new AudioRecorderHelper();
+        } else if (name.length == 1) {
             if (name[0].equals("vivo")) {
                 vSpeech = new VivoRecognizer(context, this);
             } else {
@@ -127,6 +134,7 @@ class Speech implements RecognitionListener, RecognizerListener {
         mSoundStart = mSoundPool.load(context, R.raw.speech_recognition_start, 1);
         mSoundSuccess = mSoundPool.load(context, R.raw.speech_recognition_success, 1);
         mSoundEnd = mSoundPool.load(context, R.raw.speech_speech_end, 1);
+
     }
 
 
@@ -170,7 +178,7 @@ class Speech implements RecognitionListener, RecognizerListener {
 
 
     public void start() {
-        if (speech == null && vSpeech == null) {
+        if (speech == null && vSpeech == null && mAsrClient == null) {
             alert("未正确设置识别引擎");
             playSound(mSoundError);
             return;
@@ -191,7 +199,11 @@ class Speech implements RecognitionListener, RecognizerListener {
     }
 
     private void startListening() {
-        if (vSpeech != null) {
+        if (mAudioRecorderHelper != null) {
+            mAudioRecorderHelper.startRecord();
+            state = STATE_START;
+            state =  STATE_BEGIN;
+        } else if (vSpeech != null) {
             vSpeech.startInputting();
             state = STATE_START;
         } else if (speech != null) {
@@ -220,6 +232,48 @@ class Speech implements RecognitionListener, RecognizerListener {
     public void stop() {
         Log.i(TAG, "stop");
         vibrate();
+        if (mAudioRecorderHelper != null) {
+            state = STATE_END;
+            playSound(mSoundEnd);
+            byte[] bs = mAudioRecorderHelper.stopRecord();
+            LuaUtil.save(Config.getDataDir()+"/a.wav",bs);
+            mAsrClient.recognizeAudio(bs, new AiClient.AiCallback() {
+                @Override
+                public void onSuccess(String result) {
+                    Log.w(TAG, "onSuccess: "+result );
+                    playSound(mSoundSuccess);
+                    state = STATE_DONE;
+                    TrimeService trime = TrimeService.getInstance();
+                    if (trime == null) return;
+                    boolean s2t2 = Function.getPref(context).getBoolean("voice_input_s2t", false);
+                    boolean s2t = !Rime.getRimeOption("simplification");
+                    if (result != null) {
+                        if (s2t2) {
+                            if (s2t)
+                                result = OpenCCDictManager.convertLine(result, "s2t.json");
+                            else
+                                result = OpenCCDictManager.convertLine(result, "t2s.json");
+                        }
+                        Object ret = ThemeManager.callFunction("onSpeechResults", result);
+                        if (ret != null) {
+                            if (ret.equals(Boolean.FALSE))
+                                return;
+                            if (ret instanceof String)
+                                result = ret.toString();
+                        }
+                        trime.commitText(result);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    Log.w(TAG, "onFailure: "+e.getMessage() );
+                    state = STATE_ERROR;
+                    playSound(mSoundError);
+                }
+            });
+            return;
+        }
         if (vSpeech != null)
             vSpeech.stop();
         if (speech != null)
@@ -310,7 +364,7 @@ class Speech implements RecognitionListener, RecognizerListener {
                         result = OpenCCDictManager.convertLine(result, "t2s.json");
                 }
                 Object ret = ThemeManager.callFunction("onSpeechResults", result);
-                if(ret!=null){
+                if (ret != null) {
                     if (ret.equals(Boolean.FALSE))
                         return;
                     if (ret instanceof String)
@@ -399,20 +453,20 @@ class Speech implements RecognitionListener, RecognizerListener {
         boolean s2t2 = Function.getPref(context).getBoolean("voice_input_s2t", false);
         boolean s2t = !Rime.getRimeOption("simplification");
         if (result != null) {
-                if (s2t2) {
-                    if (s2t)
-                        result = OpenCCDictManager.convertLine(result, "s2t.json");
-                    else
-                        result = OpenCCDictManager.convertLine(result, "t2s.json");
-                }
-                Object ret = ThemeManager.callFunction("onSpeechResults", result);
-                if(ret!=null){
-                    if (ret.equals(Boolean.FALSE))
-                        return;
-                    if (ret instanceof String)
-                        result = ret.toString();
-                }
-                trime.commitText(result);
+            if (s2t2) {
+                if (s2t)
+                    result = OpenCCDictManager.convertLine(result, "s2t.json");
+                else
+                    result = OpenCCDictManager.convertLine(result, "t2s.json");
+            }
+            Object ret = ThemeManager.callFunction("onSpeechResults", result);
+            if (ret != null) {
+                if (ret.equals(Boolean.FALSE))
+                    return;
+                if (ret instanceof String)
+                    result = ret.toString();
+            }
+            trime.commitText(result);
         }
     }
 

@@ -10,25 +10,18 @@ import static android.content.res.Configuration.UI_MODE_NIGHT_YES;
 
 import android.content.Context;
 import android.content.res.Resources;
-import android.graphics.Bitmap;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
 import android.os.Build;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
-import android.text.Spannable;
-import android.text.SpannableString;
 import android.text.TextUtils;
-import android.text.style.DynamicDrawableSpan;
-import android.text.style.ImageSpan;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
-import android.view.inputmethod.EditorInfo;
 
 import com.androlua.LuaApplication;
-import com.androlua.LuaBitmap;
 import com.androlua.LuaUtil;
 import com.osfans.trime.AiClient;
 import com.osfans.trime.BuildConfig;
@@ -48,9 +41,7 @@ import org.luaj.lib.jse.JsePlatform;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -66,6 +57,7 @@ public class ThemeManager {
     private static SoundPool mSoundPool;
     private static InlineModeType mInlineModeType = null;
     private static AiClient mAiClient;
+    private static AiClient mAsrClient;
 
     public static ResourceFinder getFinder() {
         return mResourceFinder;
@@ -153,6 +145,7 @@ public class ThemeManager {
         setStyle(styleName);
         Key.presetKeys = getPresetKeys();
         loadAiClient();
+        loadAsrClient();
         //Style candidate = getStyle().getStyle("candidate");
         //Rime.setRimeOption("_hide_candidate",!candidate.get("show").optboolean(true));
         //Style comment = getStyle().getStyle("candidate").getStyle("comment");
@@ -432,8 +425,44 @@ public class ThemeManager {
         }
     }
 
+    private static void loadAsrClient() {
+        mAsrClient = null;
+        LuaValue aiConfig = mGlobals.get("asr_config");
+        if (aiConfig.istable()) {
+            LuaValue base_url = aiConfig.get("base_url");
+            if (!base_url.isstring() || base_url.length() == 0)
+                return;
+            LuaValue model = aiConfig.get("model");
+            if (!model.isstring() || model.length() == 0)
+                return;
+            LuaValue key = aiConfig.get("key");
+            if (!key.isstring() || key.length() == 0)
+                return;
+            LuaValue mSystemPrompt = aiConfig.get("system_prompt");
+            LuaValue mPrompt = aiConfig.get("prompt");
+            LuaValue mExtraParams = aiConfig.get("extra_params");
+
+            mAsrClient = new AiClient(base_url.tojstring(), key.tojstring());
+            mAsrClient.setModel(model.tojstring());
+            if (mPrompt.isstring() && mPrompt.length() > 0) {
+                mAsrClient.setPrompt(mPrompt.tojstring());
+            }
+            if (mSystemPrompt.isstring() && mSystemPrompt.length() > 0) {
+                mAsrClient.setSystemPrompt(mSystemPrompt.tojstring());
+            }
+            if (mExtraParams.isstring()) {
+                mAsrClient.setExtraParams(mExtraParams.tojstring());
+            } else if (mExtraParams.istable()) {
+                mAsrClient.setExtraParams(org.luaj.android.json.encode(mExtraParams));
+            }
+        }
+    }
+
     public static AiClient getAiClient() {
         return mAiClient;
     }
 
+    public static AiClient getAsrClient() {
+        return mAsrClient;
+    }
 }

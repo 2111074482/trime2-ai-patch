@@ -79,7 +79,7 @@ public class CandidateView extends LinearLayout implements View.OnClickListener 
             }
         }
         // 设置 CandidateView 自身的高度，防止输入法界面闪烁
-        int height = mCandidateStyle.getHeight(48) - elevation;
+        int height = ThemeManager.getCandidateHeight() - elevation;
         LayoutParams lp = new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         lp.setMargins(0, 0, 0, elevation);
         addView(root, lp);

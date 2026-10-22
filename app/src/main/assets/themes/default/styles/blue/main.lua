@@ -52,7 +52,7 @@ key.long_click = {
     --长按文字颜色
     text_color = 0xff444444,
     --长按文字大小
-    text_size = 12,
+    text_size = 10,
     vibration_enabled = true,--震动开关
     vibration_effect = {
         {0, 12, 10, 20},--时长
@@ -144,7 +144,7 @@ symbol.key.pressed = {
 candidate = {
     height = 48,
     background = 0xff333333,
-    text_size = 22,
+    text_size = 20,
     text_color = 0xFFA9B2BC,
     elevation = 2,
     shadow_color = 0xff00a1e4
@@ -165,7 +165,7 @@ candidate.comment.pressed = {
 
 candidate.key = {
     text_color = 0xFFA9B2BC,
-    text_size = 18,
+    text_size = 22,
     background = 0xff333333,
     elevation = 0,
     corner_radius = 8,
@@ -227,7 +227,7 @@ clipboard.item.padding={
 --工具栏样式
 toolbar=table.clone(candidate)
 toolbar.keys={"F4","Mode_switch","Keyboard_clipboard"}
-toolbar.key.text_size=22
+toolbar.key.text_size=20
 toolbar.key.padding={
     left=8,
     top=0,

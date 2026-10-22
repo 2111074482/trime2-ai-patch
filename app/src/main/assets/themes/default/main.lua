@@ -25,6 +25,16 @@ ai_config = {
     extra_params="",--扩展参数，json字符串或table
 }
 
+--自定义asr语音识别配置，未做流式输出兼容，需关闭流式输出，需要支持input_audio的多模态
+asr_config = {
+    base_url="",--api地址
+    model="",--模型名称
+    key="",--鉴权key
+    prompt="",--提示词
+    system_prompt="",--系统参数，可以指定识别偏好
+    extra_params="",--扩展参数，json字符串或table
+}
+
 action_labels = {
     none = "Enter", --默认状态
     send = "发送", --回车键发送按钮文本
@@ -34,6 +44,7 @@ action_labels = {
     previous = "上一个", --回车键上一个按钮文本
     next = "下一个", --回车键下一个按钮文本
 }
+
 preset_keys = {
     -- 安卓
     BRIGHTNESS_DOWN = { label = "亮度 -", send = "BRIGHTNESS_DOWN" },
