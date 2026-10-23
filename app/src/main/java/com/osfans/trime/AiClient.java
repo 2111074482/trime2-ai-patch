@@ -494,7 +494,9 @@ public class AiClient {
                     }
                 });
             }catch (Exception e){
-                callback.onFailure(e);
+                if (callback != null) {
+                    callback.onFailure(e);
+                }
             }
         }
 
