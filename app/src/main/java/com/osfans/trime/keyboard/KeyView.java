@@ -602,6 +602,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
             if (!mLongClickStyle.isShow())
                 return;
             mLongClick = new TightTextView(getContext());
+            mLongClick.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             //mLongClick.setBackgroundColor(0xff0000ff);
             mHints[HINT_LONG] = mLongClick;
 
@@ -643,6 +644,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
             if (!mHintStyle.isShow())
                 return;
             mHint = new TightTextView(getContext());
+            mHint.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
             mHints[HINT] = mHint;
             mHint.setIncludeFontPadding(true);
             mHint.setSingleLine(true);
@@ -784,6 +786,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
 
         // 初始化 Click TextView
         mClick = new TextView(getContext());
+        mClick.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         mClick.setIncludeFontPadding(false);
         mClick.setSingleLine(true);
         mClick.setTextSize(TypedValue.COMPLEX_UNIT_DIP, mKeyStyle.getTextSize());
@@ -936,6 +939,7 @@ public class KeyView extends FrameLayout implements View.OnClickListener {
         if (!mHintStyle.isShow())
             return null;
         TextView hint = (g == Gravity.TOP || g == Gravity.BOTTOM) ? new TightTextView(getContext()) : new TextView(getContext());
+        hint.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
         hint.setIncludeFontPadding(true);
         hint.setText(mHintStyle.getSpan(label));
         hint.setSingleLine(true);

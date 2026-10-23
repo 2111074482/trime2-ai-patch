@@ -7,23 +7,19 @@ package com.osfans.trime;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.graphics.Color;
 import android.graphics.Insets;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.text.util.Linkify;
-import android.util.TypedValue;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
 import android.widget.ArrayListAdapter;
-import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ListView;
@@ -32,8 +28,6 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.androlua.LuaUtil;
 import com.osfans.trime.core.DataManager;
@@ -44,6 +38,7 @@ import com.osfans.trime.dialog.SchemaDialog;
 import com.osfans.trime.dialog.SchemaGroupDialog;
 import com.osfans.trime.dialog.StyleDialog;
 import com.osfans.trime.dialog.ThemeDialog;
+import com.osfans.trime.dialog.VoiceInputDialog;
 
 public class PrefLauncher extends Activity implements AdapterView.OnItemClickListener {
 
@@ -73,7 +68,8 @@ public class PrefLauncher extends Activity implements AdapterView.OnItemClickLis
                 "输入方案",
                 "键盘主题",
                 "颜色样式",
-                "默认键盘"
+                "默认键盘",
+                "语音识别引擎"
         });
         ListView mListView = new ListView(this);
         // 解决内容被导航栏遮挡的关键：应用 WindowInsets
@@ -175,6 +171,9 @@ public class PrefLauncher extends Activity implements AdapterView.OnItemClickLis
                 break;
             case 6:
                 new KeyboardDialog(this).show();
+                break;
+            case 7:
+                new VoiceInputDialog(this).show();
                 break;
         }
     }

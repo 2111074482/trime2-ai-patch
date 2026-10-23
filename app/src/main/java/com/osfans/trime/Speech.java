@@ -93,15 +93,20 @@ class Speech implements RecognitionListener, RecognizerListener {
         this.context = context;
         String[] name = Function.getPref(context).getString("recognition_service", "vivo").split("/");
         mAsrClient = ThemeManager.getAsrClient();
-        if (mAsrClient != null) {
-            mAudioRecorderHelper = new AudioRecorderHelper();
-        } else if (name.length == 1) {
-            if (name[0].equals("vivo")) {
+        if (name.length == 1) {
+            if (mAsrClient != null && name[0].equals("ai")) {
+                mAudioRecorderHelper = new AudioRecorderHelper();
+            } else if (name[0].equals("vivo")) {
                 vSpeech = new VivoRecognizer(context, this);
             } else {
-                speech = SpeechRecognizer.createSpeechRecognizer(context);
+                if (mAsrClient != null) {
+                    mAudioRecorderHelper = new AudioRecorderHelper();
+                } else {
+                    vSpeech = new VivoRecognizer(context, this);
+                }
+                /* speech = SpeechRecognizer.createSpeechRecognizer(context);
                 if (speech != null)
-                    speech.setRecognitionListener(this);
+                    speech.setRecognitionListener(this);*/
             }
         } else {
             try {
@@ -202,7 +207,7 @@ class Speech implements RecognitionListener, RecognizerListener {
         if (mAudioRecorderHelper != null) {
             mAudioRecorderHelper.startRecord();
             state = STATE_START;
-            state =  STATE_BEGIN;
+            state = STATE_BEGIN;
         } else if (vSpeech != null) {
             vSpeech.startInputting();
             state = STATE_START;
@@ -236,11 +241,10 @@ class Speech implements RecognitionListener, RecognizerListener {
             state = STATE_END;
             playSound(mSoundEnd);
             byte[] bs = mAudioRecorderHelper.stopRecord();
-            LuaUtil.save(Config.getDataDir()+"/a.wav",bs);
             mAsrClient.recognizeAudio(bs, new AiClient.AiCallback() {
                 @Override
                 public void onSuccess(String result) {
-                    Log.w(TAG, "onSuccess: "+result );
+                    Log.w(TAG, "onSuccess: " + result);
                     playSound(mSoundSuccess);
                     state = STATE_DONE;
                     TrimeService trime = TrimeService.getInstance();
@@ -267,7 +271,7 @@ class Speech implements RecognitionListener, RecognizerListener {
 
                 @Override
                 public void onFailure(Exception e) {
-                    Log.w(TAG, "onFailure: "+e.getMessage() );
+                    Log.w(TAG, "onFailure: " + e.getMessage());
                     state = STATE_ERROR;
                     playSound(mSoundError);
                 }
@@ -281,6 +285,8 @@ class Speech implements RecognitionListener, RecognizerListener {
     }
 
     public void destroy() {
+        if (mAudioRecorderHelper != null)
+            mAudioRecorderHelper.release();
         if (vSpeech != null)
             vSpeech.cancel();
         if (speech != null)
